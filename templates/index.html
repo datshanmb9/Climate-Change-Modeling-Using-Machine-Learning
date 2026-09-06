@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoAir-Forecast | Real-Time Air Quality & Multi-Model ML Predictor</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --primary-bg: #0B132B;
+            --card-bg: #1C2541;
+            --accent-cyan: #38BDF8;
+            --accent-green: #10B981;
+            --text-color: #F8FAFC;
+        }
+        body {
+            background-color: var(--primary-bg);
+            color: var(--text-color);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            min-height: 100vh;
+        }
+        .navbar-brand {
+            font-weight: 800;
+            font-size: 1.5rem;
+            color: var(--accent-cyan) !important;
+            letter-spacing: 0.5px;
+        }
+        .card-custom {
+            background-color: var(--card-bg);
+            border: 1px solid #334155;
+            border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+        .forecast-card {
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease;
+        }
+        .forecast-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.45);
+            border-color: #475569;
+        }
+        .aqi-badge-large {
+            font-size: 2.5rem;
+            font-weight: 800;
+            padding: 8px 26px;
+            border-radius: 40px;
+            display: inline-block;
+            box-shadow: 0 0 25px rgba(0,0,0,0.5);
+            letter-spacing: 1px;
+        }
+        .pollutant-card {
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 10px 12px;
+            transition: all 0.2s ease;
+        }
+        .pollutant-card:hover {
+            border-color: var(--accent-cyan);
+            background: #131E3A;
+        }
+        .pollutant-val {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #F1F5F9;
+        }
+        .pollutant-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #94A3B8;
+        }
+        #map {
+            height: 290px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+        }
+        .live-pulse {
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .chip-btn {
+            font-size: 0.75rem;
+            border-radius: 20px;
+            background: #0F172A;
+            border: 1px solid #334155;
+            color: #94A3B8;
+            padding: 4px 11px;
+            transition: all 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .chip-btn:hover {
+            background: #38BDF8;
+            color: #0F172A;
+            border-color: #38BDF8;
+            transform: scale(1.04);
+        }
+        .comparison-box {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.8rem;
+        }
+        .model-compare-card {
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 14px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .model-compare-card.active-model {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+            background: #111e38;
+        }
+        .welcome-hero {
+            background: linear-gradient(135deg, rgba(28, 37, 65, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%);
+            border: 1px dashed #475569;
+            border-radius: 16px;
+        }
+        .feature-card {
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 16px;
+            height: 100%;
+        }
+        .recent-item {
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 7px 10px;
+            transition: all 0.2s;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .recent-item:hover {
+            background: #162447;
+            border-color: var(--accent-cyan);
+            transform: translateX(3px);
+        }
+    </style>
+</head>
+<body class="py-3">
+
+    <!-- Header Navbar -->
+    <div class="container mb-3">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-4 py-2 rounded-3 border border-secondary d-flex justify-content-between align-items-center">
+            <a class="navbar-brand" href="#"><i class="fa-solid fa-wind me-2"></i>EcoAir-Forecast</a>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <span class="badge bg-primary px-2 py-1"><i class="fa-solid fa-database me-1"></i>SQLite DB Active</span>
+                <span class="badge bg-danger live-pulse px-2 py-1"><i class="fa-solid fa-satellite-dish me-1"></i>Live Station Sensors</span>
+                <span class="badge bg-info text-dark px-2 py-1"><i class="fa-solid fa-brain me-1"></i>3 ML Models Available</span>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content Container -->
+    <div class="container">
+        <!-- Error Alert Bar -->
+        <div id="errorAlert" class="alert alert-danger d-none alert-dismissible fade show" role="alert">
+            <i class="fa-solid fa-triangle-exclamation me-2"></i><span id="errorMessage">Location not found.</span>
+            <button type="button" class="btn-close btn-close-white" onclick="document.getElementById('errorAlert').classList.add('d-none')"></button>
+        </div>
+
+        <div class="row g-4">
+            
+            <!-- Left Sidebar: Controls & Input Parameters -->
+            <div class="col-lg-4">
+                <div class="card card-custom p-4">
+                    <h5 class="card-title text-info mb-2"><i class="fa-solid fa-magnifying-glass-location me-2"></i>Search City or Region</h5>
+                    
+                    <form id="forecastForm">
+                        <div class="mb-3">
+                            <label class="form-label text-light small mb-1">City Name</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-dark text-secondary border-secondary"><i class="fa-solid fa-city"></i></span>
+                                <input type="text" id="cityInput" class="form-control bg-dark text-light border-secondary" placeholder="e.g. Bengaluru, Delhi, London, Tokyo" value="" autofocus>
+                            </div>
+                        </div>
+
+                        <!-- Quick City Chips -->
+                        <div class="mb-3">
+                            <small class="text-secondary d-block mb-1" style="font-size: 0.72rem;">Quick Suggestions:</small>
+                            <div class="d-flex flex-wrap gap-1">
+                                <span class="chip-btn" onclick="quickSearch('Bengaluru')"><i class="fa-solid fa-location-dot me-1 text-info"></i>Bengaluru</span>
+                                <span class="chip-btn" onclick="quickSearch('Delhi')">Delhi</span>
+                                <span class="chip-btn" onclick="quickSearch('Mumbai')">Mumbai</span>
+                                <span class="chip-btn" onclick="quickSearch('London')">London</span>
+                                <span class="chip-btn" onclick="quickSearch('Tokyo')">Tokyo</span>
+                                <span class="chip-btn" onclick="quickSearch('New York')">New York</span>
+                            </div>
+                        </div>
+
+                        <!-- Model Selection Dropdown -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <label class="form-label text-light small mb-0"><i class="fa-solid fa-microchip me-1 text-info"></i>Machine Learning Model</label>
+                                <span class="badge bg-primary bg-opacity-25 text-info border border-info" style="font-size: 0.65rem;">Selectable</span>
+                            </div>
+                            <select id="modelSelect" class="form-select bg-dark text-light border-secondary" onchange="onModelChange()">
+                                <option value="random_forest" selected>🌲 Random Forest Regressor (Ensemble)</option>
+                                <option value="linear_regression">📈 Linear Regression (Linear & Interpretable)</option>
+                                <option value="decision_tree">🌳 Decision Tree Regressor (Rule-Based)</option>
+                            </select>
+                            <small class="text-secondary d-block mt-1" id="modelSelectHelp" style="font-size: 0.69rem;">
+                                High accuracy ensemble combining 100 decision trees to capture non-linear trends.
+                            </small>
+                        </div>
+                        
+                        <!-- Weather Parameters -->
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label text-light mb-0 small">Weather Parameters</label>
+                            <span class="badge bg-success bg-opacity-25 text-success border border-success" style="font-size: 0.68rem;">
+                                <i class="fa-solid fa-bolt me-1"></i>Auto Live-Fetched
+                            </span>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-4">
+                                <small class="text-secondary" style="font-size: 0.7rem;">Temp (°C)</small>
+                                <input type="number" id="tempInput" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Live" step="0.1">
+                            </div>
+                            <div class="col-4">
+                                <small class="text-secondary" style="font-size: 0.7rem;">Humidity (%)</small>
+                                <input type="number" id="humidityInput" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Live">
+                            </div>
+                            <div class="col-4">
+                                <small class="text-secondary" style="font-size: 0.7rem;">Wind (km/h)</small>
+                                <input type="number" id="windInput" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="Live" step="0.1">
+                            </div>
+                        </div>
+
+                        <button type="submit" id="searchBtn" class="btn btn-info w-100 fw-bold py-2 shadow-sm">
+                            <i class="fa-solid fa-wand-magic-sparkles me-2"></i>Search & Predict AQI
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Left Sidebar Today's Highlight Box (Visible only after search) -->
+                <div class="card card-custom p-4 mt-3 text-center d-none" id="todayBox">
+                    <div class="d-flex justify-content-center align-items-center gap-2 mb-1">
+                        <span class="badge bg-danger live-pulse px-2 py-1" style="font-size: 0.68rem;">
+                            <i class="fa-solid fa-circle fa-beat me-1"></i>LIVE GROUND & SATELLITE AQI
+                        </span>
+                    </div>
+                    <h5 id="locationTitle" class="text-info fw-bold mb-1">--</h5>
+                    <div id="todayBadgeContainer" class="my-2">
+                        <span id="todayAQIBadge" class="aqi-badge-large bg-secondary text-white">--</span>
+                    </div>
+                    <h4 id="todayCategory" class="fw-bold mt-1 text-light">--</h4>
+                    <p id="todayAdvice" class="small text-light opacity-90 mt-1 mb-2 px-1">Searching live environmental data...</p>
+
+                    <!-- ML Comparison Box -->
+                    <div class="comparison-box mt-2 text-start">
+                        <div class="d-flex justify-content-between text-secondary">
+                            <span><i class="fa-solid fa-tower-broadcast me-1 text-danger"></i>Live Station AQI:</span>
+                            <span id="liveAQIVal" class="fw-bold text-light">--</span>
+                        </div>
+                        <div class="d-flex justify-content-between text-secondary mt-1">
+                            <span><i class="fa-solid fa-brain me-1 text-info"></i>Active ML (<span id="activeModelLabel">RF</span>):</span>
+                            <span id="mlModelVal" class="fw-bold text-info">--</span>
+                        </div>
+                        <small class="text-secondary opacity-75 d-block mt-2" style="font-size: 0.68rem; line-height: 1.2;">
+                            *Live AQI is measured directly by environmental monitoring stations. ML weather model calculates atmospheric sensitivity.
+                        </small>
+                    </div>
+                </div>
+
+                <!-- SQLite Recent Searches Widget -->
+                <div class="card card-custom p-3 mt-3" id="recentSearchesCard">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="card-title text-info mb-0 fw-bold" style="font-size: 0.85rem;">
+                            <i class="fa-solid fa-clock-rotate-left me-1"></i>Recent Searches
+                        </h6>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary" style="font-size: 0.65rem;">SQLite</span>
+                            <button type="button" class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" onclick="clearHistory()" title="Clear search history" style="font-size: 0.72rem;">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="recentSearchesList" class="d-flex flex-column gap-1">
+                        <small class="text-secondary opacity-75 fst-italic" style="font-size: 0.72rem;">No recent searches yet.</small>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Welcome State OR Search Results -->
+            <div class="col-lg-8">
+                
+                <!-- Initial Welcome State (Visible when no search has been performed yet) -->
+                <div class="card card-custom p-5 welcome-hero text-center" id="welcomeState">
+                    <div class="mb-3">
+                        <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-info bg-opacity-10 p-4 border border-info border-opacity-25 shadow-sm">
+                            <i class="fa-solid fa-cloud-sun-rain fa-3x text-info"></i>
+                        </span>
+                    </div>
+                    <h3 class="fw-bold text-light mb-2">Search Any City to View AQI</h3>
+                    <p class="text-secondary mx-auto mb-4" style="max-width: 520px; font-size: 0.95rem;">
+                        Enter any city name above or click one of the quick suggestions to inspect real-time atmospheric pollutants, live ground AQI, and 7-day Machine Learning forecasts.
+                    </p>
+
+                    <!-- 3 Model Overview Cards (Educational & Easy to Understand) -->
+                    <div class="text-start mt-2">
+                        <h6 class="text-info fw-bold mb-3"><i class="fa-solid fa-circle-info me-2"></i>Available Machine Learning Models in this Project:</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="feature-card">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span class="badge bg-success bg-opacity-25 text-success border border-success">Ensemble</span>
+                                    </div>
+                                    <h6 class="fw-bold text-light mb-1">🌲 Random Forest</h6>
+                                    <small class="text-secondary d-block mb-2" style="font-size: 0.72rem;">Combines 100 decision trees to capture non-linear patterns.</small>
+                                    <div class="d-flex justify-content-between text-secondary small border-top border-secondary pt-2">
+                                        <span>R² Score: <b class="text-light">0.93</b></span>
+                                        <span>RMSE: <b class="text-light">34.5</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="feature-card">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span class="badge bg-warning bg-opacity-25 text-warning border border-warning">Linear</span>
+                                    </div>
+                                    <h6 class="fw-bold text-light mb-1">📈 Linear Regression</h6>
+                                    <small class="text-secondary d-block mb-2" style="font-size: 0.72rem;">Direct mathematical weighting. Highly readable & transparent formula.</small>
+                                    <div class="d-flex justify-content-between text-secondary small border-top border-secondary pt-2">
+                                        <span>R² Score: <b class="text-light">0.59</b></span>
+                                        <span>RMSE: <b class="text-light">83.4</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="feature-card">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span class="badge bg-info bg-opacity-25 text-info border border-info">Rule-Based</span>
+                                    </div>
+                                    <h6 class="fw-bold text-light mb-1">🌳 Decision Tree</h6>
+                                    <small class="text-secondary d-block mb-2" style="font-size: 0.72rem;">Splits data using clear if/else rules (e.g. low wind = higher AQI).</small>
+                                    <div class="d-flex justify-content-between text-secondary small border-top border-secondary pt-2">
+                                        <span>R² Score: <b class="text-light">0.89</b></span>
+                                        <span>RMSE: <b class="text-light">43.8</b></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Dashboard Container (Initially Hidden, Revealed on Search) -->
+                <div id="resultsContainer" class="d-none">
+                    
+                    <!-- Live Pollutants Breakdown Bar -->
+                    <div class="card card-custom p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="card-title text-info mb-0 fw-bold">
+                                <i class="fa-solid fa-smog me-2"></i>Real-Time Pollutants Breakdown
+                            </h6>
+                            <span id="currentWeatherSummary" class="small text-secondary">Fetching weather...</span>
+                        </div>
+                        <div class="row g-2 text-center" id="pollutantsGrid">
+                            <div class="col-4 col-md-2">
+                                <div class="pollutant-card">
+                                    <div class="pollutant-label">PM2.5</div>
+                                    <div class="pollutant-val" id="valPM25">--</div>
+                                    <small class="text-secondary" style="font-size: 0.65rem;">µg/m³</small>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="pollutant-card">
+                                    <div class="pollutant-label">PM10</div>
+                                    <div class="pollutant-val" id="valPM10">--</div>
+                                    <small class="text-secondary" style="font-size: 0.65rem;">µg/m³</small>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="pollutant-card">
+                                    <div class="pollutant-label">CO (Smoke)</div>
+                                    <div class="pollutant-val" id="valCO">--</div>
+                                    <small class="text-secondary" style="font-size: 0.65rem;">µg/m³</small>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="pollutant-card">
+                                    <div class="pollutant-label">NO₂</div>
+                                    <div class="pollutant-val" id="valNO2">--</div>
+                                    <small class="text-secondary" style="font-size: 0.65rem;">µg/m³</small>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="pollutant-card">
+                                    <div class="pollutant-label">SO₂</div>
+                                    <div class="pollutant-val" id="valSO2">--</div>
+                                    <small class="text-secondary" style="font-size: 0.65rem;">µg/m³</small>
+                                </div>
+                            </div>
+                            <div class="col-4 col-md-2">
+                                <div class="pollutant-card">
+                                    <div class="pollutant-label">Ozone (O₃)</div>
+                                    <div class="pollutant-val" id="valO3">--</div>
+                                    <small class="text-secondary" style="font-size: 0.65rem;">µg/m³</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3-Model Comparison & Explainability Section -->
+                    <div class="card card-custom p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="card-title text-info mb-0 fw-bold">
+                                <i class="fa-solid fa-code-compare me-2"></i>3-Model Comparison (MCA Project ML Suite)
+                            </h6>
+                            <span class="badge bg-secondary bg-opacity-50 text-light" style="font-size: 0.68rem;">Side-by-Side Evaluation</span>
+                        </div>
+                        <p class="small text-secondary mb-3" style="font-size: 0.78rem;">
+                            Each model independently calculates today's baseline AQI based on current temperature, humidity, wind, and date parameters. You can switch the active model at any time:
+                        </p>
+                        <div class="row g-3" id="modelComparisonGrid">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <!-- 7-Day Forecast Grid -->
+                    <div class="card card-custom p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="card-title text-info mb-0 fw-bold">
+                                <i class="fa-solid fa-calendar-days me-2"></i>7-Day Air Quality Forecast (<span id="forecastModelBadge">Random Forest</span> + Atmospheric)
+                            </h6>
+                            <span class="badge bg-secondary bg-opacity-50 text-light" style="font-size: 0.68rem;">Calibrated Forecast</span>
+                        </div>
+                        <div class="row g-2" id="forecastGrid">
+                            <!-- Dynamic Cards inserted via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Interactive Chart & Map Grid -->
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card card-custom p-3 h-100">
+                                <h6 class="text-info mb-2 fw-bold"><i class="fa-solid fa-chart-line me-2"></i>7-Day AQI Trend Chart</h6>
+                                <canvas id="aqiChart" height="220"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card card-custom p-3 h-100">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="text-info mb-0 fw-bold"><i class="fa-solid fa-map-location-dot me-2"></i>Location & Risk Map</h6>
+                                    <span id="mapCoords" class="small text-secondary" style="font-size: 0.7rem;"></span>
+                                </div>
+                                <div id="map"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let chartInstance = null;
+        let mapInstance = null;
+        let mapMarker = null;
+        let lastFetchedCity = '';
+
+        const modelDescriptions = {
+            'random_forest': 'High accuracy ensemble combining 100 decision trees to capture non-linear trends.',
+            'linear_regression': 'Direct mathematical formula (AQI = w1*Temp + w2*Humidity + ...). Transparent and easy to read.',
+            'decision_tree': 'Transparent if/else decision rules (e.g., if wind < 6 km/h then AQI increases).'
+        };
+
+        const modelDisplayNames = {
+            'random_forest': 'Random Forest Regressor',
+            'linear_regression': 'Linear Regression',
+            'decision_tree': 'Decision Tree Regressor'
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // No default search on startup as requested
+            loadRecentSearches();
+
+            document.getElementById('forecastForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                fetchForecast();
+            });
+        });
+
+        function getAQIColor(aqi) {
+            aqi = parseInt(aqi);
+            if (aqi <= 50) return '#10B981';
+            if (aqi <= 100) return '#F59E0B';
+            if (aqi <= 150) return '#F97316';
+            if (aqi <= 200) return '#EF4444';
+            if (aqi <= 300) return '#8B5CF6';
+            return '#991B1B';
+        }
+
+        async function loadRecentSearches() {
+            try {
+                const res = await fetch('/api/history?limit=6');
+                const data = await res.json();
+                const container = document.getElementById('recentSearchesList');
+                if (data.status === 'success' && data.history && data.history.length > 0) {
+                    container.innerHTML = '';
+                    data.history.forEach(item => {
+                        const shortCity = item.city.split(',')[0].trim();
+                        const color = getAQIColor(item.predicted_aqi);
+                        const modelCode = item.model_used === 'random_forest' ? 'RF' : (item.model_used === 'linear_regression' ? 'LinReg' : 'Tree');
+                        
+                        container.innerHTML += `
+                            <div class="recent-item d-flex justify-content-between align-items-center" onclick="quickSearch('${shortCity}')">
+                                <div>
+                                    <b class="text-light d-block" style="font-size: 0.8rem;">${shortCity}</b>
+                                    <small class="text-secondary" style="font-size: 0.65rem;">
+                                        <i class="fa-solid fa-microchip text-info me-1"></i>${modelCode} • ${item.category}
+                                    </small>
+                                </div>
+                                <span class="badge shadow-sm" style="background-color: ${color}; font-size: 0.75rem;">
+                                    AQI ${item.predicted_aqi}
+                                </span>
+                            </div>
+                        `;
+                    });
+                } else {
+                    container.innerHTML = `<small class="text-secondary opacity-75 fst-italic" style="font-size: 0.72rem;">No recent searches yet.</small>`;
+                }
+            } catch (err) {
+                console.error("Error loading recent searches:", err);
+            }
+        }
+
+        async function clearHistory() {
+            try {
+                await fetch('/api/history/clear', { method: 'POST' });
+                loadRecentSearches();
+            } catch (err) {
+                console.error("Error clearing history:", err);
+            }
+        }
+
+        function onModelChange() {
+            const select = document.getElementById('modelSelect');
+            const help = document.getElementById('modelSelectHelp');
+            help.innerText = modelDescriptions[select.value] || '';
+            
+            // If already viewing results for a city, re-fetch with new model
+            if (lastFetchedCity) {
+                fetchForecast(lastFetchedCity);
+            }
+        }
+
+        function quickSearch(cityName) {
+            document.getElementById('cityInput').value = cityName;
+            fetchForecast(cityName);
+        }
+
+        function initMap() {
+            if (!mapInstance) {
+                mapInstance = L.map('map').setView([20.5937, 78.9629], 4);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap'
+                }).addTo(mapInstance);
+            }
+        }
+
+        async function fetchForecast(overrideCity) {
+            const cityName = (overrideCity || document.getElementById('cityInput').value).trim();
+            const searchBtn = document.getElementById('searchBtn');
+            const errorAlert = document.getElementById('errorAlert');
+            errorAlert.classList.add('d-none');
+
+            if (!cityName) {
+                document.getElementById('errorMessage').innerText = "Please enter a city or region name to search.";
+                errorAlert.classList.remove('d-none');
+                return;
+            }
+
+            const selectedModel = document.getElementById('modelSelect').value;
+
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span>Searching & Computing AQI...`;
+
+            const payload = {
+                city: cityName,
+                model: selectedModel,
+                temperature: document.getElementById('tempInput').value,
+                humidity: document.getElementById('humidityInput').value,
+                wind_speed: document.getElementById('windInput').value,
+                use_live: true
+            };
+
+            try {
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const res = await response.json();
+                
+                if (res.status === 'success') {
+                    lastFetchedCity = cityName;
+
+                    // Transition from welcome screen to results screen
+                    document.getElementById('welcomeState').classList.add('d-none');
+                    document.getElementById('todayBox').classList.remove('d-none');
+                    document.getElementById('resultsContainer').classList.remove('d-none');
+
+                    // Update weather inputs with live fetched values
+                    document.getElementById('tempInput').value = res.current_weather.temperature;
+                    document.getElementById('humidityInput').value = res.current_weather.humidity;
+                    document.getElementById('windInput').value = res.current_weather.wind_speed;
+                    
+                    document.getElementById('currentWeatherSummary').innerHTML = 
+                        `<i class="fa-solid fa-temperature-half me-1 text-warning"></i>${res.current_weather.temperature}°C | 
+                         <i class="fa-solid fa-droplet me-1 text-info"></i>${res.current_weather.humidity}% | 
+                         <i class="fa-solid fa-wind me-1 text-light"></i>${res.current_weather.wind_speed} km/h`;
+
+                    // Update pollutants
+                    const aq = res.live_air_quality;
+                    document.getElementById('valPM25').innerText = aq.pm2_5;
+                    document.getElementById('valPM10').innerText = aq.pm10;
+                    document.getElementById('valCO').innerText = aq.carbon_monoxide;
+                    document.getElementById('valNO2').innerText = aq.nitrogen_dioxide;
+                    document.getElementById('valSO2').innerText = aq.sulphur_dioxide;
+                    document.getElementById('valO3').innerText = aq.ozone;
+
+                    // Update comparison values in sidebar
+                    document.getElementById('liveAQIVal').innerText = aq.us_aqi;
+                    document.getElementById('mlModelVal').innerText = aq.ml_model_raw;
+                    document.getElementById('activeModelLabel').innerText = 
+                        selectedModel === 'random_forest' ? 'RF' : (selectedModel === 'linear_regression' ? 'LinReg' : 'Tree');
+
+                    document.getElementById('forecastModelBadge').innerText = modelDisplayNames[selectedModel] || selectedModel;
+
+                    // Render Model Comparison Section
+                    renderModelComparisons(res.model_comparisons, selectedModel);
+
+                    // Render 7-day forecast & trend
+                    renderForecastUI(res.forecasts, res.city, res.lat, res.lon, aq);
+
+                    // Refresh SQLite recent searches widget
+                    loadRecentSearches();
+
+                } else {
+                    document.getElementById('errorMessage').innerText = res.message || "Failed to fetch air quality.";
+                    errorAlert.classList.remove('d-none');
+                }
+            } catch (err) {
+                console.error("Forecast Error:", err);
+                document.getElementById('errorMessage').innerText = "Network error while connecting to air quality server.";
+                errorAlert.classList.remove('d-none');
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles me-2"></i>Search & Predict AQI`;
+            }
+        }
+
+        function renderModelComparisons(comparisons, activeKey) {
+            const grid = document.getElementById('modelComparisonGrid');
+            grid.innerHTML = '';
+
+            const modelOrder = ['random_forest', 'linear_regression', 'decision_tree'];
+            
+            modelOrder.forEach(key => {
+                const m = comparisons[key];
+                if (!m) return;
+                const isActive = (key === activeKey);
+
+                grid.innerHTML += `
+                    <div class="col-md-4">
+                        <div class="model-compare-card ${isActive ? 'active-model' : ''}">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge ${isActive ? 'bg-info text-dark' : 'bg-secondary bg-opacity-50 text-light'}" style="font-size: 0.65rem;">
+                                    ${isActive ? 'ACTIVE MODEL' : m.type}
+                                </span>
+                                <span class="fw-bold" style="color: ${m.color}; font-size: 0.85rem;">${m.category}</span>
+                            </div>
+                            <h6 class="fw-bold text-light mb-1 mt-1">${m.name}</h6>
+                            <div class="d-flex align-items-baseline gap-2 my-2">
+                                <span class="badge" style="background-color: ${m.color}; font-size: 1.25rem; padding: 4px 10px;">
+                                    ${m.predicted_aqi}
+                                </span>
+                                <small class="text-secondary" style="font-size: 0.72rem;">Baseline AQI</small>
+                            </div>
+                            <div class="d-flex justify-content-between text-secondary mb-2" style="font-size: 0.7rem; border-top: 1px solid #334155; padding-top: 6px;">
+                                <span>R² Score: <b class="text-light">${m.r2_score}</b></span>
+                                <span>RMSE: <b class="text-light">${m.rmse}</b></span>
+                            </div>
+                            <p class="text-secondary small mb-2" style="font-size: 0.68rem; min-height: 38px; line-height: 1.25;">
+                                ${m.description}
+                            </p>
+                            ${!isActive ? `
+                                <button type="button" class="btn btn-outline-info btn-sm w-100 py-1" style="font-size: 0.72rem;" onclick="switchActiveModel('${key}')">
+                                    <i class="fa-solid fa-arrows-rotate me-1"></i>Switch to ${m.name.split(' ')[0]}
+                                </button>
+                            ` : `
+                                <button type="button" class="btn btn-info btn-sm w-100 py-1 fw-bold text-dark" style="font-size: 0.72rem;" disabled>
+                                    <i class="fa-solid fa-check me-1"></i>Currently Active
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function switchActiveModel(modelKey) {
+            document.getElementById('modelSelect').value = modelKey;
+            onModelChange();
+        }
+
+        function renderForecastUI(forecasts, city, lat, lon, liveAQ) {
+            document.getElementById('locationTitle').innerText = city;
+            document.getElementById('mapCoords').innerText = `Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}`;
+            
+            const grid = document.getElementById('forecastGrid');
+            grid.innerHTML = '';
+            
+            const days = [];
+            const aqis = [];
+            const colors = [];
+
+            forecasts.forEach((f, idx) => {
+                days.push(f.day);
+                aqis.push(f.predicted_aqi);
+                colors.push(f.color);
+
+                // Update Today's highlight in sidebar
+                if (idx === 0) {
+                    const badge = document.getElementById('todayAQIBadge');
+                    badge.innerText = f.predicted_aqi;
+                    badge.style.backgroundColor = f.color;
+                    badge.style.boxShadow = `0 0 25px ${f.color}80`;
+
+                    const catText = document.getElementById('todayCategory');
+                    catText.innerText = f.category;
+                    catText.style.color = f.color;
+
+                    document.getElementById('todayAdvice').innerText = f.advice;
+                }
+
+                // Render 7-day card
+                grid.innerHTML += `
+                    <div class="col">
+                        <div class="forecast-card p-2 text-center h-100">
+                            <small class="text-secondary fw-semibold d-block" style="font-size: 0.72rem;">${f.day}</small>
+                            <div class="my-1">
+                                <span class="badge shadow-sm" style="background-color: ${f.color}; font-size: 1.05rem; padding: 5px 9px;">${f.predicted_aqi}</span>
+                            </div>
+                            <small class="d-block text-truncate fw-bold mb-1" style="color: ${f.color}; font-size: 0.68rem;" title="${f.category}">${f.category}</small>
+                            <span class="text-secondary opacity-75 d-block" style="font-size: 0.65rem;">
+                                <i class="fa-solid fa-temperature-half me-1"></i>${f.temperature}°C
+                            </span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            renderChart(days, aqis, colors);
+            updateMap(city, lat, lon, forecasts[0].predicted_aqi, forecasts[0].category, forecasts[0].color, liveAQ);
+        }
+
+        function renderChart(labels, data, colors) {
+            const ctx = document.getElementById('aqiChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Forecast AQI',
+                        data: data,
+                        borderColor: '#38BDF8',
+                        backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                        fill: true,
+                        tension: 0.35,
+                        pointBackgroundColor: colors,
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 1.5,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` AQI: ${context.parsed.y}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: { 
+                            grid: { color: '#334155' }, 
+                            ticks: { color: '#94A3B8' },
+                            title: { display: true, text: 'Air Quality Index (AQI)', color: '#64748B', font: { size: 10 } }
+                        },
+                        x: { 
+                            grid: { color: '#334155' }, 
+                            ticks: { color: '#94A3B8', font: { size: 11 } } 
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateMap(city, lat, lon, aqi, category, color, liveAQ) {
+            initMap();
+            const coords = [lat, lon];
+            mapInstance.setView(coords, 11);
+            setTimeout(() => { mapInstance.invalidateSize(); }, 200);
+
+            if (mapMarker) mapInstance.removeLayer(mapMarker);
+
+            mapMarker = L.circleMarker(coords, {
+                radius: 18,
+                fillColor: color,
+                color: '#ffffff',
+                weight: 2.5,
+                opacity: 1,
+                fillOpacity: 0.85
+            }).addTo(mapInstance)
+            .bindPopup(`
+                <div style="font-family: inherit; font-size: 0.85rem; line-height: 1.4;">
+                    <b style="color: #0F172A; font-size: 0.95rem;">${city}</b><br>
+                    <span style="color: ${color}; font-weight: 700;">Live AQI: ${aqi} (${category})</span><br>
+                    <small style="color: #475569;">
+                        PM2.5: <b>${liveAQ ? liveAQ.pm2_5 : '--'}</b> µg/m³ | PM10: <b>${liveAQ ? liveAQ.pm10 : '--'}</b> µg/m³<br>
+                        CO: <b>${liveAQ ? liveAQ.carbon_monoxide : '--'}</b> µg/m³
+                    </small>
+                </div>
+            `)
+            .openPopup();
+        }
+    </script>
+</body>
+</html>

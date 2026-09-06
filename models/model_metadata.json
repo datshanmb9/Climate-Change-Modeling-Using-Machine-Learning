@@ -1,0 +1,51 @@
+{
+    "features": [
+        "Temperature",
+        "Humidity",
+        "Wind_Speed",
+        "Month",
+        "Day",
+        "DayOfWeek"
+    ],
+    "models": {
+        "random_forest": {
+            "name": "Random Forest Regressor",
+            "type": "Ensemble (100 Trees)",
+            "description": "Combines 100 decision trees to capture complex non-linear weather interactions with high accuracy.",
+            "filename": "random_forest_aqi.pkl",
+            "rmse": 34.54,
+            "mae": 19.25,
+            "r2_score": 0.9296
+        },
+        "linear_regression": {
+            "name": "Linear Regression",
+            "type": "Linear Baseline",
+            "description": "Learns transparent mathematical coefficients for each weather factor (Temp, Humidity, Wind). Very easy to read and explain.",
+            "filename": "linear_regression_aqi.pkl",
+            "rmse": 83.41,
+            "mae": 58.57,
+            "r2_score": 0.5894,
+            "coefficients": {
+                "Temperature": -7.8753,
+                "Humidity": -2.1653,
+                "Wind_Speed": -2.7206,
+                "Month": -22.7017,
+                "Day": 0.4691,
+                "DayOfWeek": -2.5239
+            },
+            "intercept": 608.3069
+        },
+        "decision_tree": {
+            "name": "Decision Tree Regressor",
+            "type": "Rule-Based Tree",
+            "description": "Splits weather data into human-readable if/else thresholds (e.g., low wind + high humidity = higher AQI).",
+            "filename": "decision_tree_aqi.pkl",
+            "rmse": 43.82,
+            "mae": 19.57,
+            "r2_score": 0.8867
+        }
+    },
+    "rmse": 34.54,
+    "r2_score": 0.9296,
+    "model_type": "RandomForestRegressor"
+}
